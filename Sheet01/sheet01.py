@@ -21,7 +21,7 @@ def lin_reg(X, Y):
     Arguments
     ---------
     - X: features with bias X (num_samples*(1+num_features))
-    - Y: takes features with bias X (num_samples*(1+num_features))
+    - Y: target values Y (num_samples*target_dims)
 
     Returns
     -------
@@ -37,7 +37,7 @@ def test_lin_reg(X, Y, w):
     Arguments
     ---------
     - X: features with bias X (num_samples*(1+num_features))
-    - Y: takes features with bias X (num_samples*(1+num_features))
+    - Y: target values Y (num_samples*target_dims)
     - w: regression coefficients w ((1+num_features)*target_dims)
 
     Returns
@@ -50,11 +50,27 @@ def test_lin_reg(X, Y, w):
 
     return np.divide(rmse, var_y)
 
-    # takes features with bias X (num_samples*(1+num_features)), centers of clusters C (num_clusters*(1+num_features)) and std of RBF sigma
-    # returns matrix with scalar product values of features and cluster centers in higher embedding space (num_samples*num_clusters)
 
+def RBF_embed(X, C, sigma):
+    """Generate the Kernel Matrix for Radial Basis functions
 
-# def RBF_embed(X, C, sigma):
+    Arguments
+    ---------
+    - X: features with bias X (num_samples*(1+num_features))
+    - C: centers of clusters C (num_clusters*(1+num_features))
+    - sigma: standard deviation of RBF
+
+    Returns
+    -------
+    - kernel: matrix with scalar product values of features and cluster centers in higher embedding space (num_samples*num_clusters)
+    """
+    kernel = np.zeros((X.shape[0], C.shape[0]))
+    for j in range(kernel.shape[1]):
+        kernel[:, j] = np.exp(-0.5 * np.diag((X - C[j]) @
+                              (X - C[j]).T) / (sigma ** 2))
+
+    return kernel
+
 
 ############################################################################################################
 # Linear Regression
@@ -78,30 +94,46 @@ def run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     print('MSE/Var dual regression for test sigma='+str(opt_sigma))
     print(err_dual)
 
+
 ############################################################################################################
 # Non Linear Regression
 ############################################################################################################
-
-
 def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     from sklearn.cluster import KMeans
+    best_err_val = np.inf
+    opt_num_clusters = 0
+    opt_sigma = 0
+    opt_w = None
     for num_clusters in [10, 30, 100]:
+        C_tr = (KMeans(num_clusters).fit(X_tr[tr_list])).cluster_centers_
+        C_val = (KMeans(num_clusters).fit(X_tr[val_list])).cluster_centers_
         for sigma_pow in range(-5, 3):
             sigma = np.power(3.0, sigma_pow)
+            K_tr = RBF_embed(X_tr[tr_list], C_tr, sigma)
+            w = lin_reg(K_tr, Y_tr[tr_list])
+            K_val = RBF_embed(X_tr[val_list], C_val, sigma)
+            err_val = test_lin_reg(K_val, Y_tr[val_list], w)
             print('MSE/Var non linear regression for val sigma=' +
                   str(sigma)+' val num_clusters='+str(num_clusters))
-            print(err_dual)
+            print(err_val)
+            if np.linalg.norm(err_val) < best_err_val:
+                best_err_val = np.linalg.norm(err_val)
+                opt_num_clusters = num_clusters
+                opt_sigma = sigma
+                opt_w = w
 
     print('MSE/Var non linear regression for test sigma=' +
           str(opt_sigma)+' test num_clusters='+str(opt_num_clusters))
-    print(err_dual)
+    C_te = (KMeans(opt_num_clusters).fit(X_te)).cluster_centers_
+    K_te = RBF_embed(X_te, C_te, opt_sigma)
+    err_test = test_lin_reg(K_te, Y_te, opt_w)
+    print(err_test)
+
 
 ####################################################################################################################################
 # Auxiliary functions for classification
 ####################################################################################################################################
 # returns features with bias X (num_samples*(1+num_feat)) and gt Y (num_samples)
-
-
 def read_data_cls(split):
     feat = {}
     gt = {}
@@ -159,11 +191,11 @@ Y_te, X_te = read_data_reg('data/regression_test.txt')
 
 run_lin_reg(X_tr, Y_tr, X_te, Y_te)
 
-# tr_list = list(range(0, int(X_tr.shape[0]/2)))
-# val_list = list(range(int(X_tr.shape[0]/2), X_tr.shape[0]))
+tr_list = list(range(0, int(X_tr.shape[0]/2)))
+val_list = list(range(int(X_tr.shape[0]/2), X_tr.shape[0]))
 
 # run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list)
-# run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list)
+run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list)
 
 # step_size = 0.0001
 # Y_tr, X_tr = read_data_cls('test')
