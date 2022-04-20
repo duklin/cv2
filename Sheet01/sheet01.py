@@ -1,4 +1,3 @@
-from audioop import rms
 import numpy as np
 from numpy.linalg import inv
 
@@ -66,8 +65,7 @@ def RBF_embed(X, C, sigma):
     """
     kernel = np.zeros((X.shape[0], C.shape[0]))
     for j in range(kernel.shape[1]):
-        kernel[:, j] = np.exp(-0.5 * np.diag((X - C[j]) @
-                              (X - C[j]).T) / (sigma ** 2))
+        kernel[:, j] = np.exp(-0.5 * np.diag((X - C[j]) @ (X - C[j]).T) / (sigma**2))
 
     return kernel
 
@@ -78,7 +76,7 @@ def RBF_embed(X, C, sigma):
 def run_lin_reg(X_tr, Y_tr, X_te, Y_te):
     w = lin_reg(X_tr, Y_tr)
     err = test_lin_reg(X_te, Y_te, w)
-    print('MSE/Var linear regression')
+    print("MSE/Var linear regression")
     print(err)
 
 
@@ -88,10 +86,10 @@ def run_lin_reg(X_tr, Y_tr, X_te, Y_te):
 def run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     for sigma_pow in range(-5, 3):
         sigma = np.power(3.0, sigma_pow)
-        print('MSE/Var dual regression for val sigma='+str(sigma))
+        print("MSE/Var dual regression for val sigma=" + str(sigma))
         print(err_dual)
 
-    print('MSE/Var dual regression for test sigma='+str(opt_sigma))
+    print("MSE/Var dual regression for test sigma=" + str(opt_sigma))
     print(err_dual)
 
 
@@ -100,6 +98,7 @@ def run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
 ############################################################################################################
 def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     from sklearn.cluster import KMeans
+
     best_err_val = np.inf
     opt_num_clusters = 0
     opt_sigma = 0
@@ -113,8 +112,12 @@ def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
             w = lin_reg(K_tr, Y_tr[tr_list])
             K_val = RBF_embed(X_tr[val_list], C_val, sigma)
             err_val = test_lin_reg(K_val, Y_tr[val_list], w)
-            print('MSE/Var non linear regression for val sigma=' +
-                  str(sigma)+' val num_clusters='+str(num_clusters))
+            print(
+                "MSE/Var non linear regression for val sigma="
+                + str(sigma)
+                + " val num_clusters="
+                + str(num_clusters)
+            )
             print(err_val)
             if np.linalg.norm(err_val) < best_err_val:
                 best_err_val = np.linalg.norm(err_val)
@@ -122,8 +125,12 @@ def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
                 opt_sigma = sigma
                 opt_w = w
 
-    print('MSE/Var non linear regression for test sigma=' +
-          str(opt_sigma)+' test num_clusters='+str(opt_num_clusters))
+    print(
+        "MSE/Var non linear regression for test sigma="
+        + str(opt_sigma)
+        + " test num_clusters="
+        + str(opt_num_clusters)
+    )
     C_te = (KMeans(opt_num_clusters).fit(X_te)).cluster_centers_
     K_te = RBF_embed(X_te, C_te, opt_sigma)
     err_test = test_lin_reg(K_te, Y_te, opt_w)
@@ -137,67 +144,93 @@ def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
 def read_data_cls(split):
     feat = {}
     gt = {}
-    for category in [('bottle', 1), ('horse', -1)]:
-        feat[category[0]] = np.loadtxt('data/'+category[0]+'_'+split+'.txt')
+    for category in [("bottle", 1), ("horse", 0)]:
+        feat[category[0]] = np.loadtxt("data/" + category[0] + "_" + split + ".txt")
         feat[category[0]] = np.concatenate(
-            (np.ones((feat[category[0]].shape[0], 1)), feat[category[0]]), axis=1)
+            (np.ones((feat[category[0]].shape[0], 1)), feat[category[0]]), axis=1
+        )
         gt[category[0]] = category[1] * np.ones(feat[category[0]].shape[0])
-    X = np.concatenate((feat['bottle'], feat['horse']), axis=0)
-    Y = np.concatenate((gt['bottle'], gt['horse']), axis=0)
+    X = np.concatenate((feat["bottle"], feat["horse"]), axis=0)
+    Y = np.concatenate((gt["bottle"], gt["horse"]), axis=0)
     return Y, X
 
-# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1)
-# Y must be from {-1, 1}
+
+# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1, 1)
+# Y must be from {0, 1}
 # returns gradient with respect to w (num_features)
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
 
-# def log_llkhd_grad(X, Y, w):
-
-    # takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1)
-    # Y must be from {-1, 1}
-    # returns log likelihood loss
-
-
-# def get_loss(X, Y, w):
-
-    # takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1)
-    # Y must be from {-1, 1}
-    # returns accuracy
+def log_llkhd_grad(X, Y, w):
+    Y_hat = sigmoid(X @ w)
+    gradient = (Y_hat - Y) * X
+    gradient = gradient.sum(axis=0).reshape(-1, 1)
+    return gradient
 
 
-# def get_accuracy(X, Y, w):
+# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1, 1)
+# Y must be from {0, 1}
+# returns log likelihood loss
+def get_loss(X, Y, w):
+    Z = X @ w
+    L = Y * -np.log(sigmoid(Z))
+    L += (1 - Y) * -np.log(1 - sigmoid(Z))
+    return L.sum()
 
-    ####################################################################################################################################
-    # Classification
-    ####################################################################################################################################
+
+# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1, 1)
+# Y must be from {0, 1}
+# returns accuracy
+def get_accuracy(X, Y, w):
+    Y_hat = sigmoid(X @ w)
+    Y_hat[Y_hat >= 0.5] = 1
+    Y_hat[Y_hat < 0.5] = 0
+    return 1 - np.count_nonzero(Y_hat - Y) / Y_hat.shape[0]
 
 
+####################################################################################################################################
+# Classification
+####################################################################################################################################
 def run_classification(X_tr, Y_tr, X_te, Y_te, step_size):
-    print('classification with step size '+str(step_size))
+    print("classification with step size " + str(step_size))
     max_iter = 10000
+    w = np.random.randn(X_tr.shape[1], 1)
     for step in range(max_iter):
+        loss = get_loss(X_tr, Y_tr, w)
+        accuracy = get_accuracy(X_te, Y_te, w)
+        grad = log_llkhd_grad(X_tr, Y_tr, w)
+        w -= step_size * grad
         if step % 1000 == 0:
-            print('step='+str(step)+' loss=' +
-                  str(loss)+' accuracy='+str(accuracy))
+            print(
+                "step="
+                + str(step)
+                + " loss="
+                + str(loss)
+                + " accuracy="
+                + str(accuracy)
+            )
 
-    print('test set loss='+str(loss)+' accuracy='+str(accuracy))
+    print("test set loss=" + str(loss) + " accuracy=" + str(accuracy))
 
 
 ####################################################################################################################################
 # Exercises
 ####################################################################################################################################
-Y_tr, X_tr = read_data_reg('data/regression_train.txt')
-Y_te, X_te = read_data_reg('data/regression_test.txt')
+Y_tr, X_tr = read_data_reg("data/regression_train.txt")
+Y_te, X_te = read_data_reg("data/regression_test.txt")
 
 run_lin_reg(X_tr, Y_tr, X_te, Y_te)
 
-tr_list = list(range(0, int(X_tr.shape[0]/2)))
-val_list = list(range(int(X_tr.shape[0]/2), X_tr.shape[0]))
+tr_list = list(range(0, int(X_tr.shape[0] / 2)))
+val_list = list(range(int(X_tr.shape[0] / 2), X_tr.shape[0]))
 
 # run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list)
 run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list)
 
-# step_size = 0.0001
-# Y_tr, X_tr = read_data_cls('test')
-# Y_te, X_te = read_data_cls('test')
-# run_classification(X_tr, Y_tr, X_te, Y_te, step_size)
+step_size = 0.1
+Y_tr, X_tr = read_data_cls("train")
+Y_te, X_te = read_data_cls("test")
+Y_tr = Y_tr.reshape(-1, 1)
+Y_te = Y_te.reshape(-1, 1)
+run_classification(X_tr, Y_tr, X_te, Y_te, step_size)
