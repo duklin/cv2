@@ -1,4 +1,3 @@
-from cgi import test
 import numpy as np
 from numpy.linalg import inv
 
@@ -66,8 +65,7 @@ def RBF_embed(X, C, sigma):
     """
     kernel = np.zeros((X.shape[0], C.shape[0]))
     for j in range(kernel.shape[1]):
-        kernel[:, j] = np.exp(-0.5 * np.diag((X - C[j]) @
-                              (X - C[j]).T) / (sigma**2))
+        kernel[:, j] = np.exp(-0.5 * np.diag((X - C[j]) @ (X - C[j]).T) / (sigma**2))
 
     return kernel
 
@@ -110,10 +108,18 @@ def run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     err_dual = test_lin_reg(K_te, Y_te, opt_psi)
     print("MSE/Var dual regression for test sigma=" + str(opt_sigma))
     print(err_dual, "\n")
-    print("The validation set proposed in the template is not ideal as it does not randomize the split, which can lead to a bias in either of the datasets.")
-    print("When sigma approaches zero, the diagonal elements of the kernel matrix are undefined due to 0/0 operation in the kernel function evaluation.")
-    print("When sigma approaches infinity, the kernel matrix is all ones, which makes it rank 1 and hence singular.")
+    print(
+        "The validation set proposed in the template is not ideal as it does not randomize the split, which can lead to a bias in either of the datasets."
+    )
+    print(
+        "When sigma approaches zero, the diagonal elements of the kernel matrix are undefined due to 0/0 operation in the kernel function evaluation."
+    )
+    print(
+        "When sigma approaches infinity, the kernel matrix is all ones, which makes it rank 1 and hence singular."
+    )
     print("In both these cases, the gradient 'psi' cannot be computed\n\n")
+
+
 ############################################################################################################
 # Non Linear Regression
 ############################################################################################################
@@ -121,6 +127,7 @@ def run_dual_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
 
 def run_non_lin_reg(X_tr, Y_tr, X_te, Y_te, tr_list, val_list):
     from sklearn.cluster import KMeans
+
     best_err_val = np.inf
     opt_num_clusters = 0
     opt_sigma = 0
@@ -167,8 +174,7 @@ def read_data_cls(split):
     feat = {}
     gt = {}
     for category in [("bottle", 1), ("horse", 0)]:
-        feat[category[0]] = np.loadtxt(
-            "data/" + category[0] + "_" + split + ".txt")
+        feat[category[0]] = np.loadtxt("data/" + category[0] + "_" + split + ".txt")
         feat[category[0]] = np.concatenate(
             (np.ones((feat[category[0]].shape[0], 1)), feat[category[0]]), axis=1
         )
@@ -178,13 +184,13 @@ def read_data_cls(split):
     return Y, X
 
 
-# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1, 1)
-# Y must be from {0, 1}
-# returns gradient with respect to w (num_features)
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
+# takes features with bias X (num_samples*(1+num_features)), gt Y (num_samples) and current_parameters w (num_features+1, 1)
+# Y must be from {0, 1}
+# returns gradient with respect to w (num_features)
 def log_llkhd_grad(X, Y, w):
     Y_hat = sigmoid(X @ w)
     gradient = (Y_hat - Y) * X
@@ -257,4 +263,6 @@ Y_te, X_te = read_data_cls("test")
 Y_tr = Y_tr.reshape(-1, 1)
 Y_te = Y_te.reshape(-1, 1)
 run_classification(X_tr, Y_tr, X_te, Y_te, step_size)
-print("The Logistic Regression model for learning linear classifier cannot get stuck in a local minima. This is because the corresponding loss landscape is a convex function, which is indicated by the positive definiteness of the Hessian of the loss function wrt the learnable parameters")
+print(
+    "The Logistic Regression model for learning linear classifier cannot get stuck in a local minima. This is because the corresponding loss landscape is a convex function, which is indicated by the positive definiteness of the Hessian of the loss function wrt the learnable parameters"
+)
