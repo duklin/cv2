@@ -1,9 +1,7 @@
 import numpy as np
 
-
 class Node():
     def __init__(self):
-
         self.type = 'None'
         self.leftChild = -1
         self.rightChild = -1
@@ -11,14 +9,13 @@ class Node():
         self.probabilities = []
 
     # Function to create a new split node
-    # provide your implementation
     def create_SplitNode(self, leftchild, rightchild, feature):
-        pass
+        self.type = ["SplitNode"]
+        self.leftChild = leftchild
+        self.rightChild = rightchild
+        self.feature = feature
 
     # Function to create a new leaf node
-    # provide your implementation
     def create_leafNode(self, labels, classes):
-        pass
-
-
-    # feel free to add any helper functions
+        self.type = ["LeafNode"]
+        self.probabilities = np.bincount(labels, minlength=len(classes)) / len(labels)
