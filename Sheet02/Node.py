@@ -1,11 +1,12 @@
 import numpy as np
 
-class Node():
+
+class Node:
     def __init__(self):
-        self.type = 'None'
+        self.type = "None"
         self.leftChild = -1
         self.rightChild = -1
-        self.feature = {'color': -1, 'pixel_location': [-1, -1], 'th': -1}
+        self.feature = {"color": -1, "pixel_location": [-1, -1], "th": -1}
         self.probabilities = []
 
     # Function to create a new split node
