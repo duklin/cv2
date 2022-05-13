@@ -26,6 +26,21 @@ class PatchSampler():
                 patch = image[r - p1:r + p2, c - p1: c + p2]
                 self.training_patches.append(patch)
                 self.training_patches_labels.append(segmap[r - p1, c - p1])
-
         self.training_patches = np.array(self.training_patches)
         self.training_patches_labels = np.array(self.training_patches_labels)
+        
+        # Balancing dataset
+        min_label_count = np.min(np.bincount(self.training_patches_labels))
+        balanced_patches = []
+        balanced_labels = []
+        for label in np.unique(self.training_patches_labels):
+            idx = np.where(self.training_patches_labels == label)[0]
+            balanced_patches.append(self.training_patches[idx[:min_label_count]])
+            balanced_labels.append(self.training_patches_labels[idx[:min_label_count]])
+
+        balanced_patches = np.array(balanced_patches)
+        balanced_labels = np.array(balanced_labels)
+        idx = np.arange(len(balanced_labels))
+        np.random.shuffle(idx)
+        self.training_patches = balanced_patches[idx].reshape(-1, self.patch_size, self.patch_size, 3)
+        self.training_patches_labels = balanced_labels[idx].reshape(-1)

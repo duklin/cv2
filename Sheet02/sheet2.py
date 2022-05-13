@@ -4,8 +4,6 @@ from Tree import DecisionTree
 from Sampler import PatchSampler
 import numpy as np
 import cv2
-import json
-
 
 def readData(root_folder: str, data_ascii_file: str):
     data = np.loadtxt(root_folder + data_ascii_file, str)
@@ -34,28 +32,37 @@ def main():
 
     tree_params = {"depth": 15,
                    "pixel_locations": 100,
-                   "random_color_values": np.random.random_integers(0, 2, 10),
+                   "random_color_values": np.random.randint(0, 3, 10),
                    "no_of_thresholds": 50,
                    "minimum_patches_at_leaf": 20,
                    "classes": train_classes}
 
+    # Random Forest
     n_trees = 5
     forest = Forest(train_patch_sampler.training_patches, train_patch_sampler.training_patches_labels, tree_params, n_trees)
     forest.create_forest()
 
-    # tree = DecisionTree(train_patch_sampler.training_patches, train_patch_sampler.training_patches_labels, tree_params)
-    # tree.train()
+    # Decision Tree
+    tree = DecisionTree(train_patch_sampler.training_patches, train_patch_sampler.training_patches_labels, tree_params)
+    tree.train()
 
+    # Inference
     for img in test_imgs:
-        segmap = forest.test(img, patch_size)
-        colored_segmap = np.zeros_like(img)
-        for i in range(colored_segmap.shape[0]):
-            for j in range(colored_segmap.shape[1]):
-                colored_segmap[i, j] = train_patch_sampler.class_colors[segmap[i, j]]
-        cv2.imshow('prediction', colored_segmap)
-        cv2.imshow('image', img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        segmap_tree = tree.predict(img, patch_size)
+        segmap_forest = forest.test(img, patch_size)
+        color_segmap_tree = np.zeros_like(img)
+        color_segmap_forest = np.zeros_like(img)
+        for i in range(color_segmap_tree.shape[0]):
+            for j in range(color_segmap_tree.shape[1]):
+                color_segmap_tree[i, j] = train_patch_sampler.class_colors[segmap_tree[i, j]]
+                color_segmap_forest[i, j] = train_patch_sampler.class_colors[segmap_forest[i, j]]
+        # cv2.imshow('prediction-tree', color_segmap_tree)
+        # cv2.imshow('prediction-forest', color_segmap_forest)
+        # cv2.imshow('image', img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+    cv2.imwrite("results/img_12_tree.bmp", color_segmap_tree)
+    cv2.imwrite("results/img_12_forest.bmp", color_segmap_forest)
 
 if __name__ == "__main__":
     main()

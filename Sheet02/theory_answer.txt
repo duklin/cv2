@@ -1,0 +1,12 @@
+Task 3:
+The training of the tree is too slow because of the number of test features
+ to go over to find the best split
+The predictive segmentation mask using the learned tree parameters is decent,
+ with the key classes being classified almost correctly with some noise
+The algorithm fails sto provide excellent segmentation masks for the following reasons:
+- We take only the ground truth label of the center pixel of the patch, ignoring the neighborhood training_patches_labels
+- We do not assume any prior over the labels.
+  Some kind of smoothness prior can help to reduce salt-and-pepper like noise
+- The performance of the algorithm can be improved by taking more diverse features than just RGB color patches
+    - Gradient information can help introduce invariance to illumination changes
+    - An ensemble of patch sizes can help provide some sort of scale invariance as well

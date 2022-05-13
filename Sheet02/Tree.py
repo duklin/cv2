@@ -1,7 +1,5 @@
 import numpy as np
 from Node import Node
-# from Sampler import PatchSampler
-
 
 class DecisionTree():
     def __init__(self, patches, labels, tree_param: dict):
@@ -17,7 +15,8 @@ class DecisionTree():
     # Function to train the tree
     # should return a trained tree with provided tree param
     def train(self):
-        self.split_node(self.root_node, self.patches, self.labels, 0)
+        self.create_node(self.root_node, self.patches, self.labels, 0)
+        print("Done training tree")
 
     # Function to predict probabilities for single image
     # should return predicted class for every pixel in the test image
@@ -99,8 +98,7 @@ class DecisionTree():
         
         return best_split, best_feature
 
-    def split_node(self, node, patches, labels, depth):
-        print("depth: ", depth)
+    def create_node(self, node, patches, labels, depth):
         if depth == self.depth:
             node.create_leafNode(labels, self.classes)
             return
@@ -111,8 +109,8 @@ class DecisionTree():
             leftChild = Node()
             rightChild = Node()
             node.create_SplitNode(leftChild, rightChild, feature)
-            self.split_node(leftChild, left_patches, left_labels, depth + 1)
-            self.split_node(rightChild, right_patches, right_labels, depth + 1)
+            self.create_node(leftChild, left_patches, left_labels, depth + 1)
+            self.create_node(rightChild, right_patches, right_labels, depth + 1)
         else:
             node.create_leafNode(labels, self.classes)
             return

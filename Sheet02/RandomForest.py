@@ -1,7 +1,5 @@
 from Tree import DecisionTree
 import numpy as np
-import json
-
 
 class Forest():
     def __init__(self, patches=[], labels=[], tree_param=[], n_trees=1):
@@ -10,6 +8,7 @@ class Forest():
         self.tree_param = tree_param
         self.ntrees = n_trees
         self.trees = []
+        # Bagging for training data for each tree
         for i in range(n_trees):
             idx = np.arange(len(patches))
             np.random.shuffle(idx)
@@ -19,7 +18,8 @@ class Forest():
     # Function to create ensemble of trees
     # Should return a trained forest with n_trees
     def create_forest(self):
-        for tree in self.trees:
+        for i, tree in enumerate(self.trees):
+            print(f"Training tree {i} from the forest")
             tree.train()
 
     # Function to apply the trained Random Forest on a test image
