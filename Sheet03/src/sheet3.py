@@ -1,6 +1,8 @@
+import os
+import random
+
 import cv2 as cv
 import numpy as np
-import random
 
 from custom_hog_detector import CustomHogDetector
 
@@ -20,7 +22,7 @@ my_svm_filename = (
 )
 
 # data paths
-test_images_1 = "../task_1_testImages/"
+test_images_1 = "data/task_1_testImages/"
 path_train_2 = "../task_2_3_Data/01Train/"
 path_test_2 = "../task_2_3_Data/02Test/"
 
@@ -33,20 +35,40 @@ path_test_2 = "../task_2_3_Data/02Test/"
 
 
 def drawBoundingBox(im, detections):
-    pass
+    for x, y, w, h in detections:
+        cv.rectangle(im, (x, y), (x + w, y + h), (255, 0, 0), thickness=2)
 
 
 def task1():
     print("Task 1 - OpenCV HOG")
 
     # Load images
+    filelist = os.path.join(test_images_1, "filenames.txt")
+    filenames = open(filelist).readlines()
+    images = []
+    for filename in filenames:
+        filename = os.path.join(
+            test_images_1, os.path.basename(filename).replace("\n", "")
+        )
+        im = cv.imread(filename)
+        images.append(im)
 
-    filelist = test_images_1 + "filenames.txt"
+    hog = cv.HOGDescriptor()
+    hog.setSVMDetector(cv.HOGDescriptor_getDefaultPeopleDetector())
 
-    # TODO: Create a HOG descriptor object to extract the features and detect people. Do this for every
-    #       image, then draw a bounding box and display the image
+    for im in images:
+        detections, w = hog.detectMultiScale(
+            im, winStride=(8, 8), padding=(32, 32), scale=1.05
+        )
+        if isinstance(detections, np.ndarray):
+            drawBoundingBox(
+                im, detections[w > 0.55]
+            )  # empirically decided confidence value
+        cv.imshow("task1", im)
+        ch = cv.waitKey()
+        if ch == 27:
+            break
 
-    cv.waitKey(0)
     cv.destroyAllWindows()
 
 
@@ -100,10 +122,10 @@ if __name__ == "__main__":
     task1()
 
     # Task 2 - Extract HOG Features
-    task2()
+    # task2()
 
     # Task 3 - Train SVM
-    task3()
+    # task3()
 
     # Task 5 - Multiple Detections
-    task5()
+    # task5()
