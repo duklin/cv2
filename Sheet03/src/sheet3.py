@@ -13,18 +13,20 @@ width = 64
 height = 128
 
 num_negative_samples = 10  # number of negative samples per image
-train_hog_path = "../train_hog_descs.dat"  # the file to which you save the HOG descriptors of every patch
-train_labels = (
-    "../labels_train.dat"  # the file to which you save the labels of the training data
+train_hog_path = "train_hog_descs.dat"  # the file to which you save the HOG descriptors of every patch
+train_labels_path = (
+    "labels_train.dat"  # the file to which you save the labels of the training data
 )
+
+
 my_svm_filename = (
     "../my_pretrained_svm.dat"  # the file to which you save the trained svm
 )
 
 # data paths
 test_images_1 = "data/task_1_testImages/"
-path_train_2 = "../task_2_3_Data/01Train/"
-path_test_2 = "../task_2_3_Data/02Test/"
+path_train_2 = "data/task_2_3_data/train/"
+path_test_2 = "data/task_2_3_data/test/"
 
 # ***********************************************************************************
 # draw a bounding box in a given image
@@ -44,12 +46,10 @@ def task1():
 
     # Load images
     filelist = os.path.join(test_images_1, "filenames.txt")
-    filenames = open(filelist).readlines()
+    filenames = open(filelist).read().splitlines()
     images = []
     for filename in filenames:
-        filename = os.path.join(
-            test_images_1, os.path.basename(filename).replace("\n", "")
-        )
+        filename = os.path.join(test_images_1, os.path.basename(filename))
         im = cv.imread(filename)
         images.append(im)
 
@@ -81,14 +81,45 @@ def task2():
 
     # Load image names
 
-    filelist_train_pos = path_train_2 + "filenamesTrainPos.txt"
-    filelist_train_neg = path_train_2 + "filenamesTrainNeg.txt"
-    # TODO: Create a HOG descriptor object to extract the features from the set of positive and negative samples
+    filelist_train_pos = os.path.join(path_train_2, "filenamesTrainPos.txt")
+    filelist_train_neg = os.path.join(path_train_2, "filenamesTrainNeg.txt")
 
-    # positive samples: Get a crop of size 64*128 at the center of the image then extract its HOG features
-    # negative samples: Sample 10 crops from each negative sample at random and then extract their HOG features
-    # In total you should have  (x+10*y) training samples represented as HOG features(x=number of positive images, y=number of negative images),
-    # save them and their labels in the path train_hog_path and train_labels in order to load them in section 3
+    hog = cv.HOGDescriptor()
+
+    filenames = open(filelist_train_pos, "r").read().splitlines()
+    w, h = 64, 128
+    pos_features = []
+    for filename in filenames:
+        filename = os.path.join(path_train_2, "pos", filename)
+        im = cv.imread(filename)
+        rows, cols, _ = im.shape
+        cropped = im[
+            rows // 2 - h // 2 : rows // 2 + h // 2,
+            cols // 2 - w // 2 : cols // 2 + w // 2,
+            :,
+        ]
+        pos_features.append(hog.compute(cropped))
+    pos_features = np.array(pos_features)
+    pos_labels = np.ones(pos_features.shape[0], dtype=np.int32)
+
+    neg_features = []
+    filenames = open(filelist_train_neg, "r").read().splitlines()
+    for filename in filenames:
+        filename = os.path.join(path_train_2, "neg", filename)
+        im = cv.imread(filename)
+        rows, cols, _ = im.shape
+        ys = np.random.randint(0, rows - h, size=10)
+        xs = np.random.randint(0, cols - w, size=10)
+        for x, y in zip(xs, ys):
+            neg_features.append(hog.compute(im[y : y + h, x : x + w, :]))
+    neg_features = np.array(neg_features)
+    neg_labels = np.ones(neg_features.shape[0], dtype=np.int32) * -1
+
+    features = np.concatenate((pos_features, neg_features), axis=0)
+    labels = np.concatenate((pos_labels, neg_labels), axis=0)
+
+    features.dump(train_hog_path)
+    labels.dump(train_labels_path)
 
 
 def task3():
@@ -98,6 +129,15 @@ def task3():
 
     filelist_testPos = path_test_2 + "filenamesTestPos.txt"
     filelist_testNeg = path_test_2 + "filenamesTestNeg.txt"
+
+    svm = cv.ml.SVM_create()
+    svm.setType(cv.ml.SVM_C_SVC)
+    svm.setKernel(cv.ml.SVM_LINEAR)
+    svm.setTermCriteria((cv.TERM_CRITERIA_MAX_ITER, 100, 1e-6))
+
+    train_hog_features = np.load(train_hog_path, allow_pickle=True)
+    train_labels = np.load(train_labels_path, allow_pickle=True)
+    svm.train(train_hog_features, cv.ml.ROW_SAMPLE, train_labels)
 
 
 def task5():
@@ -119,13 +159,13 @@ def task5():
 if __name__ == "__main__":
 
     # Task 1 - OpenCV HOG
-    task1()
+    # task1()
 
     # Task 2 - Extract HOG Features
     # task2()
 
     # Task 3 - Train SVM
-    # task3()
+    task3()
 
     # Task 5 - Multiple Detections
     # task5()
