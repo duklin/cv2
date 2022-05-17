@@ -1,8 +1,12 @@
 import os
 import random
+from cProfile import label
+from sys import flags
 
 import cv2 as cv
+import matplotlib.pyplot as plt
 import numpy as np
+from cv2 import HOGDescriptor
 
 from custom_hog_detector import CustomHogDetector
 
@@ -19,9 +23,7 @@ train_labels_path = (
 )
 
 
-my_svm_filename = (
-    "../my_pretrained_svm.dat"  # the file to which you save the trained svm
-)
+my_svm_filename = "my_pretrained_svm.dat"  # the file to which you save the trained svm
 
 # data paths
 test_images_1 = "data/task_1_testImages/"
@@ -124,20 +126,99 @@ def task2():
 
 def task3():
     print("Task 3 - Train SVM and predict confidence values")
-    # TODO Create 3 SVMs with different C values, train them with the training data and save them
-    # then use them to classify the test images and save the results
-
-    filelist_testPos = path_test_2 + "filenamesTestPos.txt"
-    filelist_testNeg = path_test_2 + "filenamesTestNeg.txt"
-
-    svm = cv.ml.SVM_create()
-    svm.setType(cv.ml.SVM_C_SVC)
-    svm.setKernel(cv.ml.SVM_LINEAR)
-    svm.setTermCriteria((cv.TERM_CRITERIA_MAX_ITER, 100, 1e-6))
 
     train_hog_features = np.load(train_hog_path, allow_pickle=True)
     train_labels = np.load(train_labels_path, allow_pickle=True)
-    svm.train(train_hog_features, cv.ml.ROW_SAMPLE, train_labels)
+
+    c_values = [0.01, 1, 100]
+
+    for c in c_values:
+        svm = cv.ml.SVM_create()
+        svm.setType(cv.ml.SVM_C_SVC)
+        svm.setKernel(cv.ml.SVM_LINEAR)
+        svm.setC(c)
+        svm.setTermCriteria((cv.TERM_CRITERIA_MAX_ITER, 100, 1e-6))
+        svm.train(train_hog_features, cv.ml.ROW_SAMPLE, train_labels)
+        svm.save(f"{c=}_{my_svm_filename}")
+
+    # filelist_testPos = os.path.join(path_test_2, "filenamesTestPos.txt")
+    # filelist_testNeg = os.path.join(path_test_2, "filenamesTestNeg.txt")
+
+    # hog = HOGDescriptor()
+
+    # w, h = 64, 128
+
+    # test_pos_filenames = open(filelist_testPos, "r").read().splitlines()
+    # test_pos_features = []
+    # for i, filename in enumerate(test_pos_filenames):
+    #     filename = os.path.join(path_test_2, "pos", filename)
+    #     test_pos_filenames[i] = filename
+    #     im = cv.imread(filename)
+    #     rows, cols, _ = im.shape
+    #     cropped = im[
+    #         rows // 2 - h // 2 : rows // 2 + h // 2,
+    #         cols // 2 - w // 2 : cols // 2 + w // 2,
+    #         :,
+    #     ]
+    #     test_pos_features.append(hog.compute(cropped))
+    # test_pos_features = np.array(test_pos_features)
+
+    # test_neg_filenames = open(filelist_testNeg, "r").read().splitlines()
+    # test_neg_features = []
+    # for i, filename in enumerate(test_neg_filenames):
+    #     filename = os.path.join(path_test_2, "neg", filename)
+    #     test_neg_filenames[i] = filename
+    #     im = cv.imread(filename)
+    #     rows, cols, _ = im.shape
+    #     ys = np.random.randint(0, rows - h, size=5)
+    #     xs = np.random.randint(0, cols - w, size=5)
+    #     for x, y in zip(xs, ys):
+    #         test_neg_features.append(hog.compute(im[y : y + h, x : x + w, :]))
+    # test_neg_features = np.array(test_neg_features)
+
+    # pos_predicted = np.zeros((test_pos_features.shape[0], 1))
+    # neg_predicted = np.zeros((test_neg_features.shape[0], 1))
+    # for c in c_values:
+    #     svm = cv.ml.SVM_load(f"{c=}_{my_svm_filename}")
+    #     pos_predicted += svm.predict(test_pos_features)[1]
+    #     neg_predicted += svm.predict(test_neg_features)[1]
+
+    # pos_predicted = np.sign(pos_predicted)
+    # neg_predicted = np.sign(neg_predicted)
+    # tp = np.count_nonzero(pos_predicted == 1)
+    # fp = np.count_nonzero(neg_predicted == 1)
+    # fn = np.count_nonzero(pos_predicted == -1)
+
+    # precision = tp / (fp + tp)
+    # recall = tp / (fn + tp)
+
+    # with open("task3_results.txt", "w") as fout:
+    #     for i, filename in enumerate(test_pos_filenames):
+    #         fout.write(f"{filename}, {pos_predicted[i]}\n")
+
+    #     for i, filename in enumerate(test_neg_filenames):
+    #         fout.write(f"{filename}, {neg_predicted[i*5:i*5+5].reshape((5,))}\n")
+
+    #     fout.write(f"Precision: {precision:.2}, Recall: {recall:.2}")
+
+    fig, axes = plt.subplots(nrows=3, ncols=1, squeeze=True, sharex=True, sharey=True)
+    for i, c in enumerate(c_values):
+        svm = cv.ml.SVM_load(f"{c=}_{my_svm_filename}")
+        pos_predicted = svm.predict(
+            train_hog_features[:500], flags=cv.ml.StatModel_RAW_OUTPUT
+        )[1]
+        neg_predicted = svm.predict(
+            train_hog_features[500:1000], flags=cv.ml.StatModel_RAW_OUTPUT
+        )[1]
+        axes[i].scatter(
+            np.arange(pos_predicted.shape[0]), pos_predicted, s=3, label=f"pos c={c}"
+        )
+        axes[i].scatter(
+            np.arange(neg_predicted.shape[0]), neg_predicted, s=3, label=f"neg c={c}"
+        )
+        axes[i].legend()
+
+    plt.show()
 
 
 def task5():
