@@ -1,7 +1,5 @@
 import os
 import random
-from cProfile import label
-from sys import flags
 
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -26,9 +24,9 @@ train_labels_path = (
 my_svm_filename = "my_pretrained_svm.dat"  # the file to which you save the trained svm
 
 # data paths
-test_images_1 = "data/task_1_testImages/"
-path_train_2 = "data/task_2_3_data/train/"
-path_test_2 = "data/task_2_3_data/test/"
+test_images_1 = "data/task_1_testImages"
+path_train_2 = "data/task_2_3_data/train"
+path_test_2 = "data/task_2_3_data/test"
 
 # ***********************************************************************************
 # draw a bounding box in a given image
@@ -43,22 +41,44 @@ def drawBoundingBox(im, detections):
         cv.rectangle(im, (x, y), (x + w, y + h), (255, 0, 0), thickness=2)
 
 
+def center_crop(im):
+    rows, cols, _ = im.shape
+    return im[
+        rows // 2 - height // 2 : rows // 2 + height // 2,
+        cols // 2 - width // 2 : cols // 2 + width // 2,
+        :,
+    ]
+
+
+def compute_hog_descriptors(filenames, transform, num_patches=1):
+    hog = cv.HOGDescriptor()
+    descriptors = []
+    for filename in filenames:
+        im = cv.imread(filename)
+        if transform == "center_crop":
+            cropped = center_crop(im)
+            descriptors.append(hog.compute(cropped))
+        elif transform == "random_crop":
+            rows, cols, _ = im.shape
+            ys = np.random.randint(0, rows - height, size=num_patches)
+            xs = np.random.randint(0, cols - width, size=num_patches)
+            for x, y in zip(xs, ys):
+                descriptors.append(hog.compute(im[y : y + height, x : x + width, :]))
+    descriptors = np.array(descriptors)
+    return descriptors
+
+
 def task1():
     print("Task 1 - OpenCV HOG")
-
-    # Load images
-    filelist = os.path.join(test_images_1, "filenames.txt")
-    filenames = open(filelist).read().splitlines()
-    images = []
-    for filename in filenames:
-        filename = os.path.join(test_images_1, os.path.basename(filename))
-        im = cv.imread(filename)
-        images.append(im)
 
     hog = cv.HOGDescriptor()
     hog.setSVMDetector(cv.HOGDescriptor_getDefaultPeopleDetector())
 
-    for im in images:
+    filelist = os.path.join(test_images_1, "filenames.txt")
+    filenames = open(filelist).read().splitlines()
+    for filename in filenames:
+        filename = os.path.join(test_images_1, os.path.basename(filename))
+        im = cv.imread(filename)
         detections, w = hog.detectMultiScale(
             im, winStride=(8, 8), padding=(32, 32), scale=1.05
         )
@@ -75,48 +95,31 @@ def task1():
 
 
 def task2():
-
     print("Task 2 - Extract HOG features")
 
     random.seed()
     np.random.seed()
-
-    # Load image names
 
     filelist_train_pos = os.path.join(path_train_2, "filenamesTrainPos.txt")
     filelist_train_neg = os.path.join(path_train_2, "filenamesTrainNeg.txt")
 
     hog = cv.HOGDescriptor()
 
+    # compute hog descriptors for positive train samples
     filenames = open(filelist_train_pos, "r").read().splitlines()
-    w, h = 64, 128
-    pos_features = []
-    for filename in filenames:
-        filename = os.path.join(path_train_2, "pos", filename)
-        im = cv.imread(filename)
-        rows, cols, _ = im.shape
-        cropped = im[
-            rows // 2 - h // 2 : rows // 2 + h // 2,
-            cols // 2 - w // 2 : cols // 2 + w // 2,
-            :,
-        ]
-        pos_features.append(hog.compute(cropped))
-    pos_features = np.array(pos_features)
+    filenames = [os.path.join(path_train_2, "pos", fn) for fn in filenames]
+    pos_features = compute_hog_descriptors(filenames, transform="center_crop")
     pos_labels = np.ones(pos_features.shape[0], dtype=np.int32)
 
-    neg_features = []
+    # compute hog descriptors for negative train samples
     filenames = open(filelist_train_neg, "r").read().splitlines()
-    for filename in filenames:
-        filename = os.path.join(path_train_2, "neg", filename)
-        im = cv.imread(filename)
-        rows, cols, _ = im.shape
-        ys = np.random.randint(0, rows - h, size=10)
-        xs = np.random.randint(0, cols - w, size=10)
-        for x, y in zip(xs, ys):
-            neg_features.append(hog.compute(im[y : y + h, x : x + w, :]))
-    neg_features = np.array(neg_features)
+    filenames = [os.path.join(path_train_2, "neg", fn) for fn in filenames]
+    neg_features = compute_hog_descriptors(
+        filenames, transform="random_crop", num_patches=num_negative_samples
+    )
     neg_labels = np.ones(neg_features.shape[0], dtype=np.int32) * -1
 
+    # put features from pos and neg samples in one ndarray (same for labels)
     features = np.concatenate((pos_features, neg_features), axis=0)
     labels = np.concatenate((pos_labels, neg_labels), axis=0)
 
@@ -132,6 +135,7 @@ def task3():
 
     c_values = [0.01, 1, 100]
 
+    # train and save the 3 SVMs
     for c in c_values:
         svm = cv.ml.SVM_create()
         svm.setType(cv.ml.SVM_C_SVC)
@@ -141,80 +145,102 @@ def task3():
         svm.train(train_hog_features, cv.ml.ROW_SAMPLE, train_labels)
         svm.save(f"{c=}_{my_svm_filename}")
 
-    # filelist_testPos = os.path.join(path_test_2, "filenamesTestPos.txt")
-    # filelist_testNeg = os.path.join(path_test_2, "filenamesTestNeg.txt")
+    # compute hog descriptors for positive test samples
+    filelist_testPos = os.path.join(path_test_2, "filenamesTestPos.txt")
+    test_pos_filenames = open(filelist_testPos, "r").read().splitlines()
+    test_pos_filenames = [
+        os.path.join(path_test_2, "pos", fn) for fn in test_pos_filenames
+    ]
+    test_pos_features = compute_hog_descriptors(
+        test_pos_filenames, transform="center_crop"
+    )
 
-    # hog = HOGDescriptor()
+    # compute hog descriptors for negative test samples (10 patches per image)
+    filelist_testNeg = os.path.join(path_test_2, "filenamesTestNeg.txt")
+    test_neg_filenames = open(filelist_testNeg, "r").read().splitlines()
+    test_neg_filenames = [
+        os.path.join(path_test_2, "neg", fn) for fn in test_neg_filenames
+    ]
+    test_neg_features = compute_hog_descriptors(
+        test_neg_filenames, transform="random_crop", num_patches=num_negative_samples
+    )
 
-    # w, h = 64, 128
+    # load SVMs
+    svm_ensemble = []
+    for c in c_values:
+        svm_ensemble.append(cv.ml.SVM_load(f"{c=}_{my_svm_filename}"))
 
-    # test_pos_filenames = open(filelist_testPos, "r").read().splitlines()
-    # test_pos_features = []
-    # for i, filename in enumerate(test_pos_filenames):
-    #     filename = os.path.join(path_test_2, "pos", filename)
-    #     test_pos_filenames[i] = filename
-    #     im = cv.imread(filename)
-    #     rows, cols, _ = im.shape
-    #     cropped = im[
-    #         rows // 2 - h // 2 : rows // 2 + h // 2,
-    #         cols // 2 - w // 2 : cols // 2 + w // 2,
-    #         :,
-    #     ]
-    #     test_pos_features.append(hog.compute(cropped))
-    # test_pos_features = np.array(test_pos_features)
+    pos_predicted = np.zeros((test_pos_features.shape[0], 1))
+    neg_predicted = np.zeros((test_neg_features.shape[0], 1))
+    for svm in svm_ensemble:
+        pos_predicted += svm.predict(test_pos_features)[1]
+        neg_predicted += svm.predict(test_neg_features)[1]
 
-    # test_neg_filenames = open(filelist_testNeg, "r").read().splitlines()
-    # test_neg_features = []
-    # for i, filename in enumerate(test_neg_filenames):
-    #     filename = os.path.join(path_test_2, "neg", filename)
-    #     test_neg_filenames[i] = filename
-    #     im = cv.imread(filename)
-    #     rows, cols, _ = im.shape
-    #     ys = np.random.randint(0, rows - h, size=5)
-    #     xs = np.random.randint(0, cols - w, size=5)
-    #     for x, y in zip(xs, ys):
-    #         test_neg_features.append(hog.compute(im[y : y + h, x : x + w, :]))
-    # test_neg_features = np.array(test_neg_features)
+    pos_predicted = np.sign(pos_predicted)
+    neg_predicted = np.sign(neg_predicted)
+    tp = np.count_nonzero(pos_predicted == 1)
+    fp = np.count_nonzero(neg_predicted == 1)
+    fn = np.count_nonzero(pos_predicted == -1)
 
-    # pos_predicted = np.zeros((test_pos_features.shape[0], 1))
-    # neg_predicted = np.zeros((test_neg_features.shape[0], 1))
-    # for c in c_values:
-    #     svm = cv.ml.SVM_load(f"{c=}_{my_svm_filename}")
-    #     pos_predicted += svm.predict(test_pos_features)[1]
-    #     neg_predicted += svm.predict(test_neg_features)[1]
+    precision = tp / (fp + tp)
+    recall = tp / (fn + tp)
 
-    # pos_predicted = np.sign(pos_predicted)
-    # neg_predicted = np.sign(neg_predicted)
-    # tp = np.count_nonzero(pos_predicted == 1)
-    # fp = np.count_nonzero(neg_predicted == 1)
-    # fn = np.count_nonzero(pos_predicted == -1)
+    # write class predictions for every test sample
+    with open("task3_test_results.txt", "w") as fout:
+        for i, filename in enumerate(test_pos_filenames):
+            fout.write(f"{filename}, {pos_predicted[i]}\n")
 
-    # precision = tp / (fp + tp)
-    # recall = tp / (fn + tp)
+        for i, filename in enumerate(test_neg_filenames):
+            neg_sample_pred = neg_predicted[
+                i * num_negative_samples : (i + 1) * num_negative_samples
+            ]
+            fout.write(
+                f"{filename}, {neg_sample_pred.reshape((num_negative_samples,))}\n"
+            )
 
-    # with open("task3_results.txt", "w") as fout:
-    #     for i, filename in enumerate(test_pos_filenames):
-    #         fout.write(f"{filename}, {pos_predicted[i]}\n")
+        fout.write(f"\nPrecision: {precision:.2}, Recall: {recall:.2}")
 
-    #     for i, filename in enumerate(test_neg_filenames):
-    #         fout.write(f"{filename}, {neg_predicted[i*5:i*5+5].reshape((5,))}\n")
+    # write confidence scores for every train sample
+    filelist_train_pos = os.path.join(path_train_2, "filenamesTrainPos.txt")
+    filelist_train_neg = os.path.join(path_train_2, "filenamesTrainNeg.txt")
+    pos_train_filenames = open(filelist_train_pos, "r").read().splitlines()
+    pos_train_filenames = [
+        os.path.join(path_train_2, "pos", fn) for fn in pos_train_filenames
+    ]
+    neg_train_filenames = open(filelist_train_neg, "r").read().splitlines()
+    neg_train_filenames = [
+        os.path.join(path_train_2, "neg", fn) for fn in neg_train_filenames
+    ]
+    conf_scores = []
+    for svm in svm_ensemble:
+        conf_scores.append(
+            svm.predict(train_hog_features, flags=cv.ml.StatModel_RAW_OUTPUT)[1]
+        )
+    conf_scores = np.array(conf_scores).squeeze()
 
-    #     fout.write(f"Precision: {precision:.2}, Recall: {recall:.2}")
+    # the confidence scores for every positive train sample represent the raw output of the three different SVMs
+    # because for every negative train sample there are 10 patches and 3 confidence scores per patch,
+    # there are 30 confidence scores for every negative train sample
+    pos_train_num = len(pos_train_filenames)
+    with open("task3_train_results.txt", "w") as fout:
+        for i, fn in enumerate(pos_train_filenames):
+            fout.write(f"{fn}, {conf_scores[:,i].reshape(-1)}\n")
+        for i, fn in enumerate(neg_train_filenames):
+            fout.write(
+                f"{fn}, {conf_scores[:,pos_train_num+i:pos_train_num+i+num_negative_samples].reshape(-1)}\n"
+            )
 
-    fig, axes = plt.subplots(nrows=3, ncols=1, squeeze=True, sharex=True, sharey=True)
+    # from the plot we notice that for c=0.01, the distances to the margin is smaller compared to c=1 or c=100
+    _, axes = plt.subplots(nrows=3, ncols=1, squeeze=True)
     for i, c in enumerate(c_values):
-        svm = cv.ml.SVM_load(f"{c=}_{my_svm_filename}")
-        pos_predicted = svm.predict(
-            train_hog_features[:500], flags=cv.ml.StatModel_RAW_OUTPUT
-        )[1]
-        neg_predicted = svm.predict(
-            train_hog_features[500:1000], flags=cv.ml.StatModel_RAW_OUTPUT
-        )[1]
+        pos_predicted = conf_scores[i, :pos_train_num]
+        neg_predicted = conf_scores[i, pos_train_num:]
+        axes[i].set_title(f"c={c}")
         axes[i].scatter(
-            np.arange(pos_predicted.shape[0]), pos_predicted, s=3, label=f"pos c={c}"
+            pos_predicted, np.zeros(pos_predicted.shape[0]), s=3, label=f"positive"
         )
         axes[i].scatter(
-            np.arange(neg_predicted.shape[0]), neg_predicted, s=3, label=f"neg c={c}"
+            neg_predicted, np.zeros(neg_predicted.shape[0]), s=3, label=f"negative"
         )
         axes[i].legend()
 

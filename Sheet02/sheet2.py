@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-
 from RandomForest import Forest
 from Sampler import PatchSampler
 from Tree import DecisionTree
