@@ -1,14 +1,5 @@
-import enum
-
 import cv2
 import numpy as np
-from cv2 import HOGDescriptor
-from matplotlib.pyplot import sca
-
-# TODO: This class should which Implements the following functionality:
-# - opencv HOGDescriptor combined with a sliding window
-# - perform detection at multiple scales, i.e. you need to scale the extracted patches when performing the detection
-# - non maximum suppression: eliminate detections using non-maximum-suppression based on the overlap area
 
 
 class CustomHogDetector:
@@ -16,20 +7,28 @@ class CustomHogDetector:
     # Some constants that you will be using in your implementation
     detection_width = 64  # the crop width dimension
     detection_height = 128  # the crop height dimension
-    window_stride = 16  # the stride size
+    window_stride = 32  # the stride size
     scaleFactors = (
-        1.2  # scale each patch down by this factor, feel free to try other values
+        1.05  # scale each patch down by this factor, feel free to try other values
     )
     # You may play with different values for these two theshold values below as well
     hit_threshold = 0.55  # detections above this threshold are counted as positive.
-    overlap_threshold = 0.1  # if the overlap between two detections is above this threshold, eliminate the one with the lower confidence score.
+    overlap_threshold = 0.2  # if the overlap between two detections is above this threshold, eliminate the one with the lower confidence score.
 
     def __init__(self, trained_svm_name):
         self.svm = cv2.ml.SVM_load(trained_svm_name)
         self.hog = cv2.HOGDescriptor()
 
     def create_pyramid(self, image):
-        pyramid = [image]
+        """
+        Create the image pyramid
+
+        No blurring is done intentially since the paper
+        mentions that the blurring worsens the results (6.7 Discussion).
+
+        Returns:
+        list of images, the first element is equal to the original image"""
+        pyramid = [image.copy()]
         while True:
             resized = cv2.resize(
                 pyramid[-1],
@@ -48,6 +47,14 @@ class CustomHogDetector:
         return pyramid
 
     def slide_window(self, image):
+        """
+        Extract HOG descriptors across the image
+        Keep the left upper (i, j) pair for each descriptor
+
+        Returns:
+        descriptors : ndarray (num of descriptors, 3780)
+        locations : ndarray (num of descriptors, 2)
+        """
         descriptors = []
         locations = []
         height, width, _ = image.shape
@@ -70,6 +77,13 @@ class CustomHogDetector:
         return descriptors, locations
 
     def create_feature_pyramid(self, image):
+        """
+        Create pyramid of HOG descriptors.
+
+        Returns:
+        ftr_pyramid : list of descriptors for each scaled image
+        location_pyramid : list of descriptor locations for each scaled image
+        """
         pyramid = self.create_pyramid(image)
         ftr_pyramid, location_pyramid = [], []
         for im in pyramid:
@@ -79,7 +93,15 @@ class CustomHogDetector:
         return ftr_pyramid, location_pyramid
 
     def detect(self, image, nms=True):
+        """
+        Perform multi-scale human detection using HOG Descriptors
+
+        Returns:
+        detections : ndarray (num of detections, (x, y, w, h))
+        conf_scores : ndarray (num of detections, )
+        """
         ftr_pyramid, location_pyramid = self.create_feature_pyramid(image)
+        # keep the predictions of each scale along with their location and confidence score
         predictions = []
         for i, (features, locations) in enumerate(zip(ftr_pyramid, location_pyramid)):
             pred = self.svm.predict(features, flags=cv2.ml.StatModel_RAW_OUTPUT)[1]
@@ -93,13 +115,14 @@ class CustomHogDetector:
 
         detections = []
         conf_scores = []
+        # normalize (flatten) the predictions at different scale
         for i, loc, scores in predictions:
             scale = CustomHogDetector.scaleFactors**i
             loc = loc * scale
             wh = CustomHogDetector.detection_height * scale
             ww = CustomHogDetector.detection_width * scale
             for j, l in enumerate(loc):
-                detections.append([l[1], l[0], ww, wh])
+                detections.append([l[1], l[0], ww, wh])  # x y width height
                 conf_scores.append(scores[j])
         detections = np.array(detections, dtype=np.int64)
         conf_scores = np.array(conf_scores)
@@ -126,6 +149,7 @@ class CustomHogDetector:
         return detections, conf_scores
 
     def overlap(self, d1, d2):
+        """Compute Intersection over Union"""
         x1, y1, w1, h1 = d1
         x2, y2, w2, h2 = d2
         x1_intersect = max(x1, x2)
