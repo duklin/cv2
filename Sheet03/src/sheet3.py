@@ -103,8 +103,6 @@ def task2():
     filelist_train_pos = os.path.join(path_train_2, "filenamesTrainPos.txt")
     filelist_train_neg = os.path.join(path_train_2, "filenamesTrainNeg.txt")
 
-    hog = cv.HOGDescriptor()
-
     # compute hog descriptors for positive train samples
     filenames = open(filelist_train_pos, "r").read().splitlines()
     filenames = [os.path.join(path_train_2, "pos", fn) for fn in filenames]
@@ -169,6 +167,8 @@ def task3():
     svm_ensemble = []
     for c in c_values:
         svm_ensemble.append(cv.ml.SVM_load(f"{c=}_{my_svm_filename}"))
+
+    svm_ensemble[1].save(my_svm_filename)
 
     pos_predicted = np.zeros((test_pos_features.shape[0], 1))
     neg_predicted = np.zeros((test_neg_features.shape[0], 1))
@@ -254,12 +254,29 @@ def task5():
     # TODO: Write your own custom class myHogDetector
     # Note: compared with the previous tasks, this task requires more coding
 
-    my_detector = Custom_Hog_Detector(my_svm_filename)
+    my_detector = CustomHogDetector(my_svm_filename)
 
     # TODO Apply your HOG detector on the same test images as used in task 1 and display the results
 
+    filelist = os.path.join(test_images_1, "filenames.txt")
+    filenames = open(filelist).read().splitlines()
+    for filename in filenames:
+        filename = os.path.join(test_images_1, os.path.basename(filename))
+        im = cv.imread(filename)
+        detections_no_nms, _ = my_detector.detect(im, nms=False)
+        detections_nms, _ = my_detector.detect(im, nms=True)
+        im_no_nms = im.copy()
+        im_nms = im.copy()
+        drawBoundingBox(im_no_nms, detections_no_nms)
+        drawBoundingBox(im_nms, detections_nms)
+
+        cv.imshow("Without NMS", im_no_nms)
+        cv.imshow("With NMS", im_nms)
+        ch = cv.waitKey()
+        if ch == 27:
+            break
+
     print("Done!")
-    cv.waitKey()
     cv.destroyAllWindows()
 
 
@@ -272,7 +289,7 @@ if __name__ == "__main__":
     # task2()
 
     # Task 3 - Train SVM
-    task3()
+    # task3()
 
     # Task 5 - Multiple Detections
-    # task5()
+    task5()
