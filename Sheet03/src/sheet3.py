@@ -283,13 +283,13 @@ def task5():
 if __name__ == "__main__":
 
     # Task 1 - OpenCV HOG
-    task1()
+    # task1()
 
     # Task 2 - Extract HOG Features
-    task2()
+    # task2()
 
     # Task 3 - Train SVM
     task3()
 
     # Task 5 - Multiple Detections
-    task5()
+    # task5()
